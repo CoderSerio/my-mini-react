@@ -1,10 +1,14 @@
+const globalData = {
+  shouldYield: false, // 控制workLoop暂停或开启
+  nextUnitOfWork: null, // 指向WorkLoop要操作的下一个Fiber
+};
+
 /** 这是一个适配器模式的应用，抹平了创建不同类型虚拟DOM的差异
  * this function serves as an application of the Adapter Pattern,
  * which reconciles differences in creating various types of visual DOM elements.
  */
 const jsx2VisualDom = (jsx) => {
   const type = typeof jsx;
-  console.log("type", type);
 
   const createVisualTextNode = (jsx) => {
     const vDom = {
@@ -47,7 +51,8 @@ const jsx2VisualDom = (jsx) => {
   return dom;
 };
 
-/** 虚拟DOM转真实DOM
+/**
+ * 虚拟DOM转真实DOM
  * transfer visual DOM to DOM
  */
 const visualDom2Dom = (visualDom) => {
@@ -90,19 +95,29 @@ const visualDom2Dom = (visualDom) => {
  */
 const render = (jsx, container) => {
   console.log("【render】JSX的数据结构", jsx);
-  // const dom = document.createElement(type);
   const visualDom = jsx2VisualDom(jsx);
-  const dom = visualDom2Dom(visualDom);
   console.log("【render】虚拟DOM", visualDom);
+  const dom = visualDom2Dom(visualDom);
   console.log("【render】真实DOM", dom);
 
   container.appendChild(dom);
 };
 
-const createElement = () => {};
+/** 工作循环，处理异步更新任务，适时渲染界面
+ *  this function schedules and executes update tasks, rendering UI when the main thread is idle
+ */
+const workLoop = (idleDeadLine) => {
+  globalData.shouldYield = false;
+  while (!globalData.shouldYield) {
+    console.log("抽空执行~");
+    globalData.shouldYield = idleDeadLine.timeRemaining() > 0;
+  }
+  requestIdleCallback(workLoop);
+};
+
+requestIdleCallback(workLoop);
 
 const React = {
-  createElement,
   render,
 };
 
