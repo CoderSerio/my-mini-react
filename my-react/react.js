@@ -110,16 +110,55 @@ const render = (jsx, container) => {
   globalData.root = globalData.nextUnitOfWork;
 };
 
-/** TODO:
+/**
+ * 将一个fiber节点加入到现有的fiber树上
+ * put a new fiber node into the existing fiber tree.
+ */
+const updateFiberTree = (parentFiber, children) => {
+  let previousFiberNode = null; // 上一次操作的fiber节点
+
+  children?.forEach((child, index) => {
+    const newFiberNode = {
+      dom: child.dom,
+      parent: parentFiber,
+      child: null,
+      sibling: null,
+      type: child.type,
+      props: child.props,
+    };
+    if (index === 0) {
+      // 第一个子节点，直接塞到child字段
+      parentFiber.child = newFiberNode;
+    } else {
+      previousFiberNode.sibling = newFiberNode;
+    }
+    previousFiberNode = newFiberNode;
+  });
+};
+
+/**
  * 更新组件内容，也用到了适配器模式，抹平了函数组件和原生标签的差异
  * update component, use Adapter Pattern to process the differences between function components and native tags.
  */
 const updateComponent = (fiber) => {
-  const { type } = fiber;
+  const { type, props } = fiber;
   const isFunctionComponent = typeof type === "function";
-
-  const updateFunctionComponent = () => {};
-  const updateHostComponent = () => {};
+  console.log("【updateComponent】fiber及其类型", isFunctionComponent, fiber);
+  const updateFunctionComponent = () => {
+    // 函数组件的type就是自身 the Function Component's `type` is itself
+    const children = [type(props)];
+    updateFiberTree(fiber, children);
+  };
+  const updateHostComponent = () => {
+    if (!fiber.dom) {
+      fiber.dom =
+        type === "__TEXT_ELEMENT"
+          ? document.createTextNode("")
+          : document.createElement(type);
+    }
+    updateProps(fiber.dom, fiber.props);
+    updateFiberTree(fiber, fiber.props.children);
+  };
 
   if (isFunctionComponent) {
     updateFunctionComponent();

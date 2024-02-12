@@ -1,3 +1,6 @@
+const Comp = ({num}) => {
+  return <div>{num}</div>
+}
 const App = () => {
   return <div id="app">
     <div>Hello</div>
@@ -5,8 +8,8 @@ const App = () => {
       <span>My</span>
       <span>React</span>
     </div>
-    2024
+    <Comp num={2024}></Comp>
   </div>
 }
 
-export default App()
+export default App
