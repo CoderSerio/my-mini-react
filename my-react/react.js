@@ -2,39 +2,26 @@
  * this function serves as an application of the Adapter Pattern,
  * which reconciles differences in creating various types of visual DOM elements.
  */
-const jsx2VisualDom = (element) => {
-  const type = typeof element;
+const jsx2VisualDom = (jsx) => {
+  const type = typeof jsx;
   console.log("type", type);
 
-  const createTextNode = (element) => {
-    // const dom = document.createTextNode(element);
-    // return dom;
+  const createVisualTextNode = (jsx) => {
     const vDom = {
       type: "__TEXT_ELEMENT",
       props: {
-        nodeValue: element,
+        nodeValue: jsx,
         children: [],
       },
     };
     return vDom;
   };
-  const createElement = (element) => {
-    const { props, type } = element;
-    // const dom = document.createElement(tag);
-
-    // Object.keys(props)?.forEach((key) => {
-    //   if (key !== "children") {
-    //     dom[key] = props[key];
-    //   }
-    // });
+  const createVisualElement = (jsx) => {
+    const { props, type } = jsx;
 
     const { children } = props;
     const childrenList = Array.isArray(children) ? children : [children];
-    // childrenList.forEach((child) => {
-    //   render(child, dom);
-    // });
 
-    // return dom;
     const vDom = {
       type,
       props: {
@@ -51,29 +38,65 @@ const jsx2VisualDom = (element) => {
 
   let dom = null;
   if (["string", "number"].includes(type)) {
-    dom = createTextNode(element);
-  } else if (typeof element === "object") {
-    dom = createElement(element);
+    dom = createVisualTextNode(jsx);
+  } else if (typeof jsx === "object") {
+    dom = createVisualElement(jsx);
   } else {
     throw "【createDom】失败，不支持该类型的DOM! Failed，Unsupported DOM Type!";
   }
   return dom;
 };
 
-/**  */
-const createDom = () => {};
+/** 虚拟DOM转真实DOM
+ * transfer visual DOM to DOM
+ */
+const visualDom2Dom = (visualDom) => {
+  const { type } = visualDom;
+
+  const createTextNode = (visualDom) => {
+    const dom = document.createTextNode(visualDom.props?.nodeValue ?? "");
+    return dom;
+  };
+  const createElement = (visualDom) => {
+    const dom = document.createElement(visualDom.type);
+    Object.keys(visualDom.props).forEach((key) => {
+      if (key !== "children") {
+        dom[key] = visualDom.props[key];
+      }
+    });
+
+    const { children } = visualDom.props;
+    const childVDomList = Array.isArray(children) ? children : [children];
+    childVDomList.forEach((childVDom) => {
+      const childDom = visualDom2Dom(childVDom);
+      dom.appendChild(childDom);
+    });
+
+    return dom;
+  };
+
+  let dom = null;
+  if (type === "__TEXT_ELEMENT") {
+    dom = createTextNode(visualDom);
+  } else {
+    dom = createElement(visualDom);
+  }
+  return dom;
+};
 
 /**
  * 所谓渲染，也就是把JSX转为浏览器认识的DOM, 具体的过程是`JSX->Visual DOM->DOM`
  * `render` means that transfer JSX to DOM， and the procession is `JSX->Visual DOM->DOM`.
  */
-const render = (element, container) => {
-  console.log("【render】JSX的数据结构", element);
+const render = (jsx, container) => {
+  console.log("【render】JSX的数据结构", jsx);
   // const dom = document.createElement(type);
-  const visualDom = jsx2VisualDom(element);
+  const visualDom = jsx2VisualDom(jsx);
+  const dom = visualDom2Dom(visualDom);
   console.log("【render】虚拟DOM", visualDom);
-  // container.appendChild(dom);
-  Object.keys(visualDom).forEach(() => {});
+  console.log("【render】真实DOM", dom);
+
+  container.appendChild(dom);
 };
 
 const createElement = () => {};
