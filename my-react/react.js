@@ -7,10 +7,26 @@ const createDom = (element) => {
   console.log("type", type);
 
   const createTextNode = (element) => {
-    return document.createTextNode(element);
+    const dom = document.createTextNode(element);
+    return dom;
   };
   const createElement = (element) => {
-    console.log("【createElement】element", element);
+    const { props, type: tag } = element;
+    const dom = document.createElement(tag);
+
+    Object.keys(props)?.forEach((key) => {
+      if (key !== "children") {
+        dom[key] = props[key];
+      }
+    });
+
+    const { children } = props;
+    const childrenList = Array.isArray(children) ? children : [children];
+    childrenList.forEach((child) => {
+      render(child, dom);
+    });
+
+    return dom;
   };
 
   let dom = null;
@@ -25,13 +41,11 @@ const createDom = (element) => {
 };
 
 /**
- * 所谓渲染，也就是把jsx转为浏览器认识的dom
- * `render` means that transfer jsx to dom
+ * 所谓渲染，也就是把JSX转为浏览器认识的DOM
+ * `render` means that transfer JSX to DOM.
  */
 const render = (element, container) => {
   console.log("【render】JSX的数据结构", element);
-  const { props, type } = element;
-
   // const dom = document.createElement(type);
   const dom = createDom(element);
   container.appendChild(dom);

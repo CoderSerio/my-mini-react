@@ -2,10 +2,10 @@
 import React from "./react";
 
 // 这里甚至用了柯里化
-function createRoot(element) {
+function createRoot(container) {
   return {
-    render(App) {
-      React.render(App, element);
+    render(element) {
+      React.render(element, container);
     },
   };
 }
