@@ -1,9 +1,5 @@
 const App = () => {
-  return <div id="app">
-    <span>
-    react-app
-    </span>
-  </div>
+  return 123
 }
 
 export default App()
