@@ -1,91 +1,23 @@
 const globalData = {
   shouldYield: false, // 控制workLoop暂停或开启
   nextUnitOfWork: null, // 指向WorkLoop要操作的下一个Fiber
-  root: null, // fiber 树的根节点
+  wipRoot: null, // 正在处理过程中的 fiber 树的根节点，
+  curRoot: null, // 现在已经显示在屏幕上的内容对应的 fiber树的根节点
 };
 
-// /**
-//  * 这是一个适配器模式的应用，抹平了创建不同类型虚拟DOM的差异
-//  * this function serves as an application of the Adapter Pattern,
-//  * which reconciles differences in creating various types of visual DOM elements.
-//  */
-// const jsx2VisualDom = (jsx) => {
-//   const type = typeof jsx;
-
-//   const createVisualTextNode = (jsx) => {
-//     const vDom = {
-//       type: "__TEXT_ELEMENT",
-//       props: {
-//         nodeValue: jsx,
-//         children: [],
-//       },
-//     };
-//     return vDom;
-//   };
-//   const createVisualElement = (jsx) => {
-//     const { props, type } = jsx;
-
-//     const { children } = props;
-//     const childrenList = Array.isArray(children) ? children : [children];
-
-//     const vDom = {
-//       type,
-//       props: {
-//         ...props,
-//         children: childrenList.map((child) => {
-//           const childVDom = jsx2VisualDom(child);
-//           return childVDom;
-//         }),
-//       },
-//     };
-
-//     return vDom;
-//   };
-
-//   let dom = null;
-//   if (["string", "number"].includes(type)) {
-//     dom = createVisualTextNode(jsx);
-//   } else if (typeof jsx === "object") {
-//     dom = createVisualElement(jsx);
-//   } else {
-//     throw "【createDom】失败，不支持该类型的DOM! Failed，Unsupported DOM Type!";
-//   }
-//   return dom;
-// };
-
-// /**
-//  * 虚拟DOM转真实DOM
-//  * transfer visual DOM to DOM
-//  */
-// const visualDom2Dom = (visualDom) => {
-//   const { type } = visualDom;
-
-//   const createTextNode = (visualDom) => {
-//     const dom = document.createTextNode(visualDom.props?.nodeValue ?? "");
-//     return dom;
-//   };
-//   const createElement = (visualDom) => {
-//     const dom = document.createElement(visualDom.type);
-//     updateProps(dom, visualDom.props);
-
-//     const { children } = visualDom.props;
-//     const childVDomList = Array.isArray(children) ? children : [children];
-//     childVDomList.forEach((childVDom) => {
-//       const childDom = visualDom2Dom(childVDom);
-//       dom.appendChild(childDom);
-//     });
-
-//     return dom;
-//   };
-
-//   let dom = null;
-//   if (type === "__TEXT_ELEMENT") {
-//     dom = createTextNode(visualDom);
-//   } else {
-//     dom = createElement(visualDom);
-//   }
-//   return dom;
-// };
+/**
+ * 更新fiber，过程可以概括为交换双缓存树
+ * update fiber, and its exact procession is to swap the double cache tree
+ */
+const update = () => {
+  globalData.wipRoot = {
+    dom: globalData.curRoot.dom,
+    props: globalData.curRoot.props,
+    alternate: globalData.curRoot,
+  };
+  globalData.nextUnitOfWork = globalData.wipRoot;
+  console.log("%c【update】当前状态", globalData);
+};
 
 /**
  * 1. 所谓渲染，也就是把JSX转为浏览器认识的DOM, 具体的过程是`JSX->Visual DOM->DOM`
@@ -94,31 +26,24 @@ const globalData = {
  * 2. after the adjustment, the role of the render function has transformed into initializing fiber nodes.
  */
 const render = (element, container) => {
-  // console.log("【render】JSX的数据结构", jsx);
-  // const visualDom = jsx2VisualDom(jsx);
-  // console.log("【render】虚拟DOM", visualDom);
-  // const dom = visualDom2Dom(visualDom);
-  // console.log("【render】真实DOM", dom);
-
-  // container.appendChild(dom);
   globalData.nextUnitOfWork = {
     dom: container,
     props: {
       children: [element],
     },
   };
-  globalData.root = globalData.nextUnitOfWork;
+  globalData.wipRoot = globalData.nextUnitOfWork;
   console.log("%c【render】开始渲染，当前状态", "color:#00ff33", globalData);
 };
 
 /**
- * 将一个fiber节点加入到现有的fiber树上
- * put a new fiber node into the existing fiber tree.
+ * 将一个fiber节点加入到现有的fiber树上, 这个过程在 react 中叫做 reconcile
+ * put a new fiber node into the existing fiber tree, and this procession is called reconcile in official react
  */
 const updateFiberTree = (parentFiber, children) => {
   if (!parentFiber || !children) return;
   console.log(
-    "【updateFiberTree】parentFiber && children",
+    "【updateFiberTree (reconcile)】parentFiber && children",
     parentFiber,
     children
   );
@@ -180,12 +105,30 @@ const updateComponent = (fiber) => {
   }
 };
 
-/** 更新参数 */
-const updateProps = (obj, props) => {
-  if (obj && props) {
+/**
+ *  更新参数, 这里为了做最小量更新，还需要对比新旧props
+ *  update props with the min cost by only updating the changed part
+ */
+const updateProps = (obj, newProps, oldProps) => {
+  if (!obj) return;
+
+  if (oldProps) {
+    // 为了节省开销，避免多余的dom操作，所以不能直接全部删
     Object.keys(props)?.forEach((key) => {
-      if (key !== "children") {
+      if (key !== "children" && !key.startsWith("on") && !nextProps[key]) {
         obj[key] = props[key];
+      }
+    });
+  }
+
+  if (newProps) {
+    Object.keys(newProps).forEach((key) => {
+      if (key.startsWith("on")) {
+        const event = key.slice(2).toLocaleLowerCase();
+        obj.addEventListener(event, newProps[key]);
+      }
+      if (key !== "children" && !key.startsWith("on")) {
+        obj[key] = newProps[key];
       }
     });
   }
@@ -236,7 +179,7 @@ const commitWork = (fiber) => {
 
 /**
  * 工作循环，处理异步更新任务，适时渲染界面
- *  this function schedules and executes update tasks, rendering UI when the main thread is idle
+ * this function schedules and executes update tasks, rendering UI when the main thread is idle
  */
 const workLoop = (idleDeadLine) => {
   globalData.shouldYield = false;
@@ -249,14 +192,16 @@ const workLoop = (idleDeadLine) => {
     globalData.nextUnitOfWork = performUnitOfWork(globalData.nextUnitOfWork);
     globalData.shouldYield = idleDeadLine.timeRemaining() > 0;
   }
-  if (!globalData.nextUnitOfWork && globalData.root) {
+  if (!globalData.nextUnitOfWork && globalData.wipRoot) {
     console.log(
-      "%c【workLoop】本轮工作循环任务已完成，即将进行commit挂载DOM",
-      "color:skyblue"
+      "%c【workLoop】本轮工作循环任务已完成，即将进行commit挂载DOM, 当前状态",
+      "color:skyblue",
+      globalData
     );
-    commitWork(globalData.root);
+    commitWork(globalData.wipRoot);
     console.log("%c【workLoop】commit结束，本轮工作循环结束", "color: purple");
-    globalData.root = null;
+    globalData.curRoot = globalData.wipRoot;
+    globalData.wipRoot = null;
   }
   requestIdleCallback(workLoop);
 };
@@ -265,6 +210,7 @@ requestIdleCallback(workLoop);
 
 const React = {
   render,
+  update,
 };
 
 export default React;
