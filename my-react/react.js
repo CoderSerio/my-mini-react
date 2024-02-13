@@ -108,7 +108,7 @@ const render = (element, container) => {
     },
   };
   globalData.root = globalData.nextUnitOfWork;
-  console.log("【render】globalData", globalData);
+  console.log("%c【render】开始渲染，当前状态", "color:#00ff33", globalData);
 };
 
 /**
@@ -116,20 +116,25 @@ const render = (element, container) => {
  * put a new fiber node into the existing fiber tree.
  */
 const updateFiberTree = (parentFiber, children) => {
+  if (!parentFiber || !children) return;
   console.log(
     "【updateFiberTree】parentFiber && children",
     parentFiber,
     children
   );
-  let previousFiberNode = null; // 上一次操作的fiber节点
 
-  children?.forEach?.((child, index) => {
+  const childList = Array.isArray(children) ? children : [children];
+  // ["string", "number"].includes(typeof children);
+  let previousFiberNode = null; // 上一次操作的fiber节点
+  childList.forEach?.((child, index) => {
+    const isTextNode = ["string", "number"].includes(typeof child);
+
     const newFiberNode = {
-      dom: child.dom,
+      dom: isTextNode ? document.createTextNode(child) : child.dom,
       parent: parentFiber,
       child: null,
       sibling: null,
-      type: child.type,
+      type: isTextNode ? "__TEXT_ELEMENT" : child.type,
       props: child.props,
     };
     if (index === 0) {
@@ -149,9 +154,9 @@ const updateFiberTree = (parentFiber, children) => {
 const updateComponent = (fiber) => {
   const { type, props } = fiber;
   const isFunctionComponent = typeof type === "function";
-  console.log("【updateComponent】fiber及其类型", fiber, type);
 
   const updateFunctionComponent = () => {
+    console.log("【updateComponent-函数组件】fiber及其类型", type, fiber);
     // 函数组件的type就是自身 the Function Component's `type` is itself
     const children = [type(props)];
     updateFiberTree(fiber, children);
@@ -163,8 +168,9 @@ const updateComponent = (fiber) => {
           ? document.createTextNode("")
           : document.createElement(type);
     }
+    console.log("【updateComponent-原生组件】fiber及其类型", type, fiber);
     updateProps(fiber.dom, fiber.props);
-    updateFiberTree(fiber, fiber.props.children);
+    updateFiberTree(fiber, fiber.props?.children);
   };
 
   if (isFunctionComponent) {
@@ -235,14 +241,21 @@ const commitWork = (fiber) => {
 const workLoop = (idleDeadLine) => {
   globalData.shouldYield = false;
   while (!globalData.shouldYield && globalData.nextUnitOfWork) {
-    console.log("【workLoop】浏览器空闲，执行工作循环，当前状态", globalData);
+    console.log(
+      "%c【workLoop】浏览器空闲，执行工作循环，当前状态",
+      "color: #ff3700",
+      globalData
+    );
     globalData.nextUnitOfWork = performUnitOfWork(globalData.nextUnitOfWork);
     globalData.shouldYield = idleDeadLine.timeRemaining() > 0;
   }
   if (!globalData.nextUnitOfWork && globalData.root) {
-    console.log("【workLoop】本轮工作循环任务已完成，即将进行commit挂载DOM");
+    console.log(
+      "%c【workLoop】本轮工作循环任务已完成，即将进行commit挂载DOM",
+      "color:skyblue"
+    );
     commitWork(globalData.root);
-    console.log("【workLoop】commit结束，本轮工作循环结束");
+    console.log("%c【workLoop】commit结束，本轮工作循环结束", "color: purple");
     globalData.root = null;
   }
   requestIdleCallback(workLoop);
