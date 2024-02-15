@@ -10,13 +10,22 @@ const globalData = {
  * update fiber, and its exact procession is to swap the double cache tree
  */
 const update = () => {
+  // console.log(
+  //   "%c【update】即将开始更新globalData，当前状态",
+  //   "color:#00ff33 ",
+  //   globalData
+  // );
   globalData.wipRoot = {
     dom: globalData.curRoot.dom,
     props: globalData.curRoot.props,
     alternate: globalData.curRoot,
   };
   globalData.nextUnitOfWork = globalData.wipRoot;
-  console.log("%c【update】当前状态", globalData);
+  console.log(
+    "%c【update】已更新globalData，当前状态",
+    "color:#00ff33 ",
+    globalData
+  );
 };
 
 /**
@@ -26,13 +35,13 @@ const update = () => {
  * 2. after the adjustment, the role of the render function has transformed into initializing fiber nodes.
  */
 const render = (element, container) => {
-  globalData.nextUnitOfWork = {
+  globalData.wipRoot = {
     dom: container,
     props: {
       children: [element],
     },
   };
-  globalData.wipRoot = globalData.nextUnitOfWork;
+  globalData.nextUnitOfWork = globalData.wipRoot;
   console.log("%c【render】开始渲染，当前状态", "color:#00ff33", globalData);
 };
 
@@ -50,18 +59,39 @@ const updateFiberTree = (parentFiber, children) => {
 
   const childList = Array.isArray(children) ? children : [children];
   // ["string", "number"].includes(typeof children);
-  let previousFiberNode = null; // 上一次操作的fiber节点
-  childList.forEach?.((child, index) => {
-    const isTextNode = ["string", "number"].includes(typeof child);
+  let previousFiberNode = null; // 创建链表过程中，上一次操作的fiber节点
+  let alternateFiberNode = parentFiber?.alternate?.child; // 双缓存树体系中，对应的fiber节点，这里初始化为第一个子节点
 
-    const newFiberNode = {
-      dom: isTextNode ? document.createTextNode(child) : child.dom,
-      parent: parentFiber,
-      child: null,
-      sibling: null,
-      type: isTextNode ? "__TEXT_ELEMENT" : child.type,
-      props: child.props,
-    };
+  childList.forEach?.((child, index) => {
+    const isSameType =
+      alternateFiberNode && alternateFiberNode?.type === child.type;
+
+    let newFiberNode = null;
+    if (isSameType) {
+      newFiberNode = {
+        dom: alternateFiberNode?.dom,
+        parent: parentFiber,
+        child: null,
+        sibling: null,
+        type: child.type,
+        props: child.props,
+        alternate: alternateFiberNode,
+        effectTag: "UPDATE",
+      };
+    } else {
+      const isTextNode = ["string", "number"].includes(typeof child);
+      newFiberNode = {
+        dom: isTextNode ? document.createTextNode(child) : child.dom,
+        parent: parentFiber,
+        child: null,
+        sibling: null,
+        type: isTextNode ? "__TEXT_ELEMENT" : child.type,
+        props: child.props,
+        alternate: null,
+        effectTag: "PLACEMENT",
+      };
+    }
+
     if (index === 0) {
       // 第一个子节点，直接塞到child字段
       parentFiber.child = newFiberNode;
@@ -69,6 +99,7 @@ const updateFiberTree = (parentFiber, children) => {
       previousFiberNode.sibling = newFiberNode;
     }
     previousFiberNode = newFiberNode;
+    alternateFiberNode = alternateFiberNode?.sibling ?? null;
   });
 };
 
@@ -114,8 +145,8 @@ const updateProps = (obj, newProps, oldProps) => {
 
   if (oldProps) {
     // 为了节省开销，避免多余的dom操作，所以不能直接全部删
-    Object.keys(props)?.forEach((key) => {
-      if (key !== "children" && !key.startsWith("on") && !nextProps[key]) {
+    Object.keys(oldProps)?.forEach((key) => {
+      if (key !== "children" && !key.startsWith("on") && !newProps[key]) {
         obj[key] = props[key];
       }
     });
@@ -124,7 +155,7 @@ const updateProps = (obj, newProps, oldProps) => {
   if (newProps) {
     Object.keys(newProps).forEach((key) => {
       if (key.startsWith("on")) {
-        const event = key.slice(2).toLocaleLowerCase();
+        const event = key.slice(2).toLowerCase();
         obj.addEventListener(event, newProps[key]);
       }
       if (key !== "children" && !key.startsWith("on")) {
@@ -141,7 +172,6 @@ const updateProps = (obj, newProps, oldProps) => {
 const performUnitOfWork = (fiber) => {
   console.log("【performUnitOfWork】fiber", fiber);
   updateComponent(fiber);
-  // updateProps(fiber.dom, fiber.props);
 
   // 返回下一个兄弟节点或者子节点，以便于继续执行工作循环
   if (fiber.child) {
@@ -154,6 +184,7 @@ const performUnitOfWork = (fiber) => {
     }
     nextFiber = nextFiber.parent;
   }
+  return null;
 };
 
 /**
@@ -169,10 +200,25 @@ const commitWork = (fiber) => {
     // 找到第一个有dom的 parentFiber
     parentFiber = parentFiber.parent;
   }
-  console.log("【commitWork】parenFiber 和 fiber", parentFiber, fiber);
+
   if (fiber.dom) {
-    parentFiber?.dom?.appendChild(fiber.dom);
+    if (fiber.effectTag === "UPDATE") {
+      console.log(
+        "【commitWork-更新】parenFiberDOM 和 fiberDOM",
+        parentFiber.dom,
+        fiber.dom
+      );
+      updateProps(fiber.dom, fiber.props, fiber.alternate?.props);
+    } else if (fiber.effectTag === "PLACEMENT") {
+      console.log(
+        "【commitWork-挂载】parenFiberDOM 和 fiberDOM",
+        parentFiber.dom,
+        fiber.dom
+      );
+      parentFiber?.dom?.appendChild(fiber.dom);
+    }
   }
+
   commitWork(fiber.child);
   commitWork(fiber.sibling);
 };
@@ -199,7 +245,11 @@ const workLoop = (idleDeadLine) => {
       globalData
     );
     commitWork(globalData.wipRoot);
-    console.log("%c【workLoop】commit结束，本轮工作循环结束", "color: purple");
+    console.log(
+      "%c【workLoop】commit结束，本轮工作循环结束，当前状态",
+      "color: purple",
+      globalData
+    );
     globalData.curRoot = globalData.wipRoot;
     globalData.wipRoot = null;
   }

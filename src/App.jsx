@@ -1,16 +1,16 @@
 import React from '../my-react/react'
 const data = {id: 1}
 
+const handleClickWithoutUpdate = () => {
+  data.id ++;
+  console.log('click!', data.id)
+}
+const handleClick= () => {
+  handleClickWithoutUpdate()
+  React.update()
+}
+
 const Comp = ({num}) => {
-  const handleClickWithoutUpdate = () => {
-    data.id ++;
-    console.log('click!', data.id)
-  }
-  const handleClick= () => {
-    handleClickWithoutUpdate()
-    React.update()
-  }
-  
   return (
     <div className="comp">
       <div>{num}————{data.id}</div>
